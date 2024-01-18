@@ -1,0 +1,124 @@
+_schema-version: "3.1"
+ID: cap-testDraft
+description: A simple CAP project.
+version: 1.0.0
+modules:
+- name: cap-testDraft-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: cap-testDraft-db
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+  build-parameters:
+    builder: npm
+- name: cap-testDraft-db-deployer
+  type: hdb
+  path: gen/db
+  requires:
+  - name: cap-testDraft-db
+  parameters:
+    buildpack: nodejs_buildpack
+- name: cap-testDraft-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: cap-testDraft-destination-service
+    parameters:
+      content-target: true
+  - name: cap-testDraft_html_repo_host
+    parameters:
+      service-key:
+        name: cap-testDraft_html_repo_host-key
+  - name: uaa_cap-testDraft
+    parameters:
+      service-key:
+        name: uaa_cap-testDraft-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: testDraft_cap_testDraft_html_repo_host
+          ServiceInstanceName: cap-testDraft-html5-app-host-service
+          ServiceKeyName: cap-testDraft_html_repo_host-key
+          sap.cloud.service: testDraft
+        - Authentication: OAuth2UserTokenExchange
+          Name: testDraft_uaa_cap_testDraft
+          ServiceInstanceName: cap-testDraft-xsuaa-service
+          ServiceKeyName: uaa_cap-testDraft-key
+          sap.cloud.service: testDraft
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+- name: cap-testDraft-app-content
+  type: com.sap.application.content
+  path: .
+  requires:
+  - name: cap-testDraft_html_repo_host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: resources
+    requires:
+    - artifacts:
+      - accciotestdrafttestdraft.zip
+      name: accciotestdrafttestdraft
+      target-path: resources/
+- name: accciotestdrafttestdraft
+  type: html5
+  path: app/testdraft
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: cap-testDraft-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+- name: cap-testDraft-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      init_data:
+        instance:
+          destinations:
+          - Authentication: NoAuthentication
+            Name: ui5
+            ProxyType: Internet
+            Type: HTTP
+            URL: https://ui5.sap.com
+          existing_destinations_policy: update
+      version: 1.0.0
+    service: destination
+    service-name: cap-testDraft-destination-service
+    service-plan: lite
+- name: cap-testDraft_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: cap-testDraft-html5-app-host-service
+    service-plan: app-host
+- name: uaa_cap-testDraft
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: cap-testDraft-xsuaa-service
+    service-plan: application
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npx cds build --production
